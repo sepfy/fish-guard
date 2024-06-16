@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# Start the modules....
+#
+
+case "$1" in
+  start)
+	printf "Starting modules: "
+	modprobe fixed
+	modprobe i2c-bcm2835
+	modprobe i2c-mux-pinctrl
+	modprobe i2x-mux
+	modprobe bcm2835-isp
+	modprobe bcm2835-codec
+	modprobe bcm2835-unicam
+	modprobe bcm2835-v4l2
+	modprobe imx708
+	modprobe dw9807-vcm
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+	;;
+  stop)
+	printf "Stopping modules: "
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+	;;
+  restart|reload)
+	"$0" stop
+	"$0" start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

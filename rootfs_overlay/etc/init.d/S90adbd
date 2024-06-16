@@ -1,0 +1,38 @@
+#!/bin/sh
+
+function init_adb() {
+
+	modprobe dwc2
+	modprobe g_ffs idVendor=0x18d1 idProduct=0x4e42 iSerialNumber="buildroot"
+	mkdir -p /dev/usb-ffs/adb -m 0770 
+	mount -t functionfs adb /dev/usb-ffs/adb -o uid=2000,gid=2000
+	mount -t configfs none /sys/kernel/config
+	mkdir /sys/kernel/config/usb_gadget/g1 -m 0770
+	echo 0x2207 > /sys/kernel/config/usb_gadget/g1/idVendor 
+	echo 0x0006 > /sys/kernel/config/usb_gadget/g1/idProduct
+	mkdir -p /sys/kernel/config/usb_gadget/g1/strings/0x409 -m 0770
+	echo "0123456789ABCDEF" > /sys/kernel/config/usb_gadget/g1/strings/0x409/serialnumber
+	echo "raspberrypi"  > /sys/kernel/config/usb_gadget/g1/strings/0x409/manufacturer
+	echo "pizerow"  > /sys/kernel/config/usb_gadget/g1/strings/0x409/product
+	mkdir /sys/kernel/config/usb_gadget/g1/configs/b.1 -m 0770 
+	mkdir /sys/kernel/config/usb_gadget/g1/configs/b.1/strings/0x409 -m 0770 
+	echo "adb" > /sys/kernel/config/usb_gadget/g1/configs/b.1/strings/0x409/configuration
+	adbd &
+}
+
+case "$1" in
+	start)
+		init_adb &
+		[ $? = 0 ] && echo "OK" || echo "FAIL"
+		;;
+	stop)
+		killall adbd
+		;;
+	restart|reload)
+		"$0" stop
+		"$0" start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+esac
