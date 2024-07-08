@@ -1,0 +1,2 @@
+source "../external/package/libpeer/Config.in"
+source "../external/package/fish-guard/Config.in"

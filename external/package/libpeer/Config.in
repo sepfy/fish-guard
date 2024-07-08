@@ -1,0 +1,5 @@
+config BR2_PACKAGE_LIBPEER
+	bool "libpeer"
+	help
+	  webrtc client sdk
+	  https://github.com/sepfy/libpeer
