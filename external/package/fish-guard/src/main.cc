@@ -12,80 +12,107 @@
 #include <arpa/inet.h>
 #include <gst/gst.h>
 #include <fstream>
+#include <INIReader.h>
+#include <wpa_ctrl.h>
+
 #include "peer.h"
 
-const int kFeederCount = 5;
-const char kCameraPipeline[] = "libcamerasrc auto-focus-mode=2 ! video/x-raw, format=(string)NV12, width=(int)1920, height=(int)1080, framerate=(fraction)20/1, interlace-mode=(string)progressive, colorimetry=(string)bt709 ! v4l2h264enc capture-io-mode=4 output-io-mode=4 extra-controls=encode,video_bitrate=2500000,video_gop_size=300 ! video/x-h264, stream-format=(string)byte-stream, level=(string)4, alignment=(string)au ! h264parse config-interval=-1 ! appsink name=camera-sink";
+const std::string kDefaultConfig = "/boot/config.ini";
+const int kFeederCount = 3;
+const char kCameraPipeline[] = "libcamerasrc auto-focus-mode=2 ! video/x-raw, format=(string)NV12, width=(int)1920, height=(int)1080, framerate=(fraction)20/1, interlace-mode=(string)progressive, colorimetry=(string)bt709 ! videoflip method=rotate-180 ! v4l2h264enc capture-io-mode=4 output-io-mode=4 extra-controls=encode,video_bitrate=2500000,video_gop_size=300 ! video/x-h264, stream-format=(string)byte-stream, level=(string)4, alignment=(string)au ! h264parse config-interval=-1 ! queue ! appsink name=camera-sink";
 
-class PwmHandler {
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unistd.h> // for usleep
+
+class StepperMotor {
  public:
-  PwmHandler();
-  void SetDutyCycle(int duty_cycle);
-  void EnablePwm(bool enable);
+  StepperMotor(int pin_1, int pin_2, int pin_3, int pin_4);
+  void Step(int steps, int delay);
+
  private:
-  void ExportPwm();
-  void SetPeriod(int period);
+  int pin_1_, pin_2_, pin_3_, pin_4_;
+ 
+  void SetupPins();
+  void ExportPin(int pin);
+  void SetDirection(int pin, std::string direction);
+  void SetPinValue(int pin, int value);
+  void StepMotor(int sequence);
 };
 
-PwmHandler::PwmHandler() {
-  ExportPwm();
-  SetPeriod(20000000); // 20ms period for 50Hz PWM signal
-  SetDutyCycle(5000000);
+StepperMotor::StepperMotor(int pin_1, int pin_2, int pin_3, int pin_4)
+  : pin_1_(pin_1), pin_2_(pin_2), pin_3_(pin_3), pin_4_(pin_4) {
+  SetupPins();
 }
 
-void PwmHandler::EnablePwm(bool enable) {
-  const std::string pwm_enable_path = "/sys/class/pwm/pwmchip0/pwm0/enable";
-  std::ofstream enable_file(pwm_enable_path);
-  if (enable_file.is_open()) {
-    enable_file << (enable ? "1" : "0");
-    enable_file.close();
-    std::cout << "PWM " << (enable ? "enabled" : "disabled") << std::endl;
-  } else {
-    std::cerr << "Failed to open " << pwm_enable_path << std::endl;
+void StepperMotor::Step(int steps, int delay) {
+  for (int i = 0; i < steps; i++) {
+    StepMotor(0b1100);
+    usleep(delay);
+    StepMotor(0b0110);
+    usleep(delay);
+    StepMotor(0b0011);
+    usleep(delay);
+    StepMotor(0b1001);
+    usleep(delay);
   }
 }
 
-void PwmHandler::ExportPwm() {
-  const std::string export_path = "/sys/class/pwm/pwmchip0/export";
-  std::ofstream export_file(export_path);
+void StepperMotor::SetupPins() {
+  ExportPin(pin_1_);
+  ExportPin(pin_2_);
+  ExportPin(pin_3_);
+  ExportPin(pin_4_);
+
+  SetDirection(pin_1_, "out");
+  SetDirection(pin_2_, "out");
+  SetDirection(pin_3_, "out");
+  SetDirection(pin_4_, "out");
+}
+
+void StepperMotor::ExportPin(int pin) {
+  std::ofstream export_file("/sys/class/gpio/export");
   if (export_file.is_open()) {
-    export_file << "0";
+    export_file << pin;
     export_file.close();
-    std::cout << "Exported PWM0" << std::endl;
   } else {
-    std::cerr << "Failed to open " << export_path << std::endl;
+    std::cerr << "Unable to export GPIO pin" << std::endl;
   }
 }
 
-void PwmHandler::SetPeriod(int period) {
-  const std::string pwm_period_path = "/sys/class/pwm/pwmchip0/pwm0/period";
-  std::ofstream period_file(pwm_period_path);
-  if (period_file.is_open()) {
-    period_file << period;
-    period_file.close();
-    std::cout << "Set PWM period to " << period << std::endl;
+void StepperMotor::SetDirection(int pin, std::string direction) {
+  std::ofstream dir_file("/sys/class/gpio/gpio" + std::to_string(pin) + "/direction");
+  if (dir_file.is_open()) {
+    dir_file << direction;
+    dir_file.close();
   } else {
-    std::cerr << "Failed to open " << pwm_period_path << std::endl;
+    std::cerr << "Unable to set direction of GPIO pin" << std::endl;
   }
 }
 
-void PwmHandler::SetDutyCycle(int duty_cycle) {
-  const std::string pwm_duty_path = "/sys/class/pwm/pwmchip0/pwm0/duty_cycle";
-  std::ofstream duty_file(pwm_duty_path);
-  if (duty_file.is_open()) {
-    duty_file << duty_cycle;
-    duty_file.close();
-    std::cout << "Set PWM duty cycle to " << duty_cycle << std::endl;
+void StepperMotor::SetPinValue(int pin, int value) {
+  std::ofstream value_file("/sys/class/gpio/gpio" + std::to_string(pin) + "/value");
+  if (value_file.is_open()) {
+    value_file << value;
+    value_file.close();
   } else {
-    std::cerr << "Failed to open " << pwm_duty_path << std::endl;
+    std::cerr << "Unable to set value of GPIO pin" << std::endl;
   }
+}
+
+void StepperMotor::StepMotor(int sequence) {
+  SetPinValue(pin_1_, (sequence & 0b1000) >> 3);
+  SetPinValue(pin_2_, (sequence & 0b0100) >> 2);
+  SetPinValue(pin_3_, (sequence & 0b0010) >> 1);
+  SetPinValue(pin_4_, (sequence & 0b0001));
 }
 
 class FishGaurd {
  public:
   FishGaurd();
   ~FishGaurd();
-  void Run();
+  void Run(std::string device_id);
 
  private:
   static void OnConnectionStateChange(PeerConnectionState state, void *data);
@@ -124,12 +151,12 @@ class FishGaurd {
   ServiceConfiguration service_config_ = SERVICE_CONFIG_DEFAULT();
 
   bool is_open_;
-  PwmHandler pwm_handler_;
+  StepperMotor motor_;
 };
 
 FishGaurd* FishGaurd::instance_ = nullptr;
 
-FishGaurd::FishGaurd() : interrupted_(false), pc_(nullptr), state_(PEER_CONNECTION_CLOSED), camera_pipeline_(nullptr), camera_sink_(nullptr), is_open_(false), pwm_handler_(), feeder_(0) {
+FishGaurd::FishGaurd() : interrupted_(false), pc_(nullptr), state_(PEER_CONNECTION_CLOSED), camera_pipeline_(nullptr), camera_sink_(nullptr), is_open_(false), motor_(23, 24, 25, 8), feeder_(0) {
   gst_init(nullptr, nullptr);
   signal(SIGINT, SignalHandler);
   instance_ = this;
@@ -148,10 +175,7 @@ FishGaurd::~FishGaurd() {
   peer_deinit();
 }
 
-void FishGaurd::Run() {
-
-  std::string device_id = "fish-" + GetHwAddr("wlan0");
-  std::cout << "open https://sepfy.github.io/webrtc?deviceId=" << device_id << std::endl;
+void FishGaurd::Run(std::string device_id) {
 
   camera_pipeline_ = gst_parse_launch(kCameraPipeline, nullptr);
   camera_sink_ = gst_bin_get_by_name(GST_BIN(camera_pipeline_), "camera-sink");
@@ -185,25 +209,12 @@ void FishGaurd::Run() {
   bool enable = false;
   while (!interrupted_) {
 
-    if (feeder_.load() == kFeederCount) {
-
-      if (!enable) {
-        pwm_handler_.EnablePwm(true);
-        enable = true;
-      }
-    }
-
     if (feeder_.load() > 0) {
       feeder_.fetch_sub(1);
-    } else {
-
-      if (enable) {
-        pwm_handler_.EnablePwm(false);
-	enable = false;
-      }
+      motor_.Step(1, 4000);
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
 
@@ -323,9 +334,43 @@ std::string FishGaurd::GetHwAddr(const std::string &iface) {
   return hwaddr;
 }
 
+void WpaCtrlRequest(struct wpa_ctrl *ctrl_conn, std::string cmd) {
+
+  char reply[128];
+  size_t len = sizeof(reply);
+  wpa_ctrl_request(ctrl_conn, cmd.c_str(), cmd.length(), reply, &len, NULL);
+  usleep(100*1000);
+}
+
 int main(int argc, char *argv[]) {
   FishGaurd fish_guard;
-  fish_guard.Run();
+
+  INIReader reader(kDefaultConfig);
+  if (reader.ParseError() < 0) {
+    std::cerr << "Can't load " << kDefaultConfig << std::endl;
+    return 1;
+  }
+
+  std::string ssid = reader.Get("fish-guard", "ssid", "myssid");
+  std::string password = reader.Get("fish-guard", "password", "mypassword");
+  std::string device_id = reader.Get("fish-guard", "id", "mydevice");
+  std::cout << "ssid: " << ssid << ", password: " << password << ", device_id: " << device_id << std::endl;
+
+  struct wpa_ctrl *ctrl_conn = wpa_ctrl_open("/var/run/wpa_supplicant/wlan0");
+  if (ctrl_conn == NULL) {
+    std::cerr << "ERROR\n";
+  }
+  std::string cmd;
+  cmd = "ADD_NETWORK";
+  WpaCtrlRequest(ctrl_conn, cmd);
+  cmd = "SET_NETWORK 0 ssid \"" + ssid + "\"";
+  WpaCtrlRequest(ctrl_conn, cmd);
+  cmd = "SET_NETWORK 0 psk \"" + password + "\"";
+  WpaCtrlRequest(ctrl_conn, cmd);
+  cmd = "ENABLE_NETWORK 0";
+  WpaCtrlRequest(ctrl_conn, cmd);
+
+  fish_guard.Run(device_id);
   return 0;
 }
 

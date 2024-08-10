@@ -1,6 +1,5 @@
 config BR2_PACKAGE_FISH_GUARD
 	bool "fish-guard"
 	depends on BR2_PACKAGE_LIBPEER
-	select BR2_PACKAGE_LIBPEER
 	help
 	  fish guard app

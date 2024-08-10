@@ -12,6 +12,6 @@ include_directories(
 
 add_executable(fish-guard ${SRCS})
 
-target_link_libraries(fish-guard peer pthread gstreamer-1.0 gobject-2.0)
+target_link_libraries(fish-guard peer pthread gstreamer-1.0 gobject-2.0 INIReader wpa_client)
 
 install(TARGETS fish-guard DESTINATION bin)

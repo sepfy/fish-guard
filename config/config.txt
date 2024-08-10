@@ -24,7 +24,6 @@ gpu_mem_1024=128
 enable_uart=1        
 camera_auto_detect=1                                                       
 dtoverlay=dwc2                                                             
-dtoverlay=pwm 
 
 # fixes rpi (3B, 3B+, 3A+, 4B and Zero W) ttyAMA0 serial console
 dtoverlay=miniuart-bt
