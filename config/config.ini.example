@@ -1,0 +1,4 @@
+[fish-guard]
+ssid = myssid
+password = mypassword 
+device = mydevice

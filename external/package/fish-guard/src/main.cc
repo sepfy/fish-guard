@@ -189,9 +189,9 @@ void FishGaurd::Run(std::string device_id) {
 
   service_config_.client_id = device_id.c_str();
   service_config_.pc = pc_;
-  service_config_.mqtt_url = "td99649f.ala.asia-southeast1.emqxsl.com";
-  service_config_.username = "aaron";
-  service_config_.password = "12345678";
+  service_config_.mqtt_url = "broker.emqx.io";
+  service_config_.username = "";
+  service_config_.password = "";
   peer_signaling_set_config(&service_config_);
 
   while (!interrupted_) {
