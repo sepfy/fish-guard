@@ -1,3 +1,6 @@
 [submodule "buildroot"]
 	path = buildroot
 	url = https://gitlab.com/buildroot.org/buildroot.git
+[submodule "libpeer"]
+	path = libpeer
+	url = https://github.com/sepfy/libpeer/
